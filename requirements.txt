@@ -1,0 +1,9 @@
+pandas
+PyPDF2
+langchain
+chromadb
+groq
+python-dotenv
+requests
+sentence-transformers
+openpyxl
