@@ -1,10 +1,14 @@
 import chromadb
 from chromadb.utils import embedding_functions
 from typing import List, Dict, Any
+import os
+from pathlib import Path
 
 class ChromaDB:
     def __init__(self):
-        self.client = chromadb.Client()
+        # Use PersistentClient with explicit path
+        chroma_path = os.path.join(Path(__file__).parent.parent.parent, "chroma_data")
+        self.client = chromadb.PersistentClient(path=chroma_path)
         self.embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
         self.collection = self.client.get_or_create_collection(
             name="products",
@@ -14,20 +18,19 @@ class ChromaDB:
     def index_documents(self, documents: List[Dict[str, Any]]):
         """Index a list of product documents into ChromaDB."""
         for doc in documents:
-            # Ensure required keys exist, use defaults if missing
             category = doc.get('category', 'unknown')
-            product_name = str(doc.get('product_name', 'unknown_product'))  # Convert to string
-            description = doc.get('description', '')
+            product_name = str(doc.get('product_name', 'unknown_product'))
+            full_description = doc.get('Full Description', '')
             price = doc.get('price', 0.0)
             stock = doc.get('stock', 'Unknown')
             
             doc_id = f"{category}_{product_name.replace(' ', '_')}"
-            text = f"{product_name}: {description}, Price: ${price}, {stock}"
+            text = f"{product_name}: {full_description}, Price: ${price}, {stock}"
             metadata = {
                 "category": category,
                 "brand": doc.get('brand', 'unknown'),
                 "product_name": product_name,
-                "description": description,
+                "Full Description": full_description,
                 "price": price,
                 "stock": stock
             }

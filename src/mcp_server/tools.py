@@ -12,7 +12,7 @@ def search_local_products(query: str, vector_db: ChromaDB) -> List[Dict[str, Any
     return [
         {
             "product_name": result["metadata"]["product_name"],
-            "description": result["metadata"]["description"],
+            "Full Description": result["metadata"]["Full Description"],
             "price": result["metadata"]["price"],
             "stock": result["metadata"]["stock"],
             "category": result["metadata"]["category"],
@@ -35,7 +35,7 @@ def search_online_products(query: str) -> List[Dict[str, Any]]:
         return [
             {
                 "product_name": item["title"],
-                "description": item.get("description", ""),
+                "Full Description": item.get("description", ""),
                 "price": item["primary_offer"]["offer_price"],
                 "stock": "In Stock" if item.get("quantity", 0) > 0 else "Out of Stock",
                 "category": item.get("category", "Unknown"),
