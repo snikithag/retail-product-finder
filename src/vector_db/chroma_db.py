@@ -6,7 +6,6 @@ from pathlib import Path
 
 class ChromaDB:
     def __init__(self):
-        # Use PersistentClient with explicit path
         chroma_path = os.path.join(Path(__file__).parent.parent.parent, "chroma_data")
         self.client = chromadb.PersistentClient(path=chroma_path)
         self.embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
@@ -16,24 +15,12 @@ class ChromaDB:
         )
 
     def index_documents(self, documents: List[Dict[str, Any]]):
-        """Index a list of product documents into ChromaDB."""
+        """Index a list of product documents with dynamic schema."""
         for doc in documents:
-            category = doc.get('category', 'unknown')
-            product_name = str(doc.get('product_name', 'unknown_product'))
-            full_description = doc.get('Full Description', '')
-            price = doc.get('price', 0.0)
-            stock = doc.get('stock', 'Unknown')
-            
-            doc_id = f"{category}_{product_name.replace(' ', '_')}"
-            text = f"{product_name}: {full_description}, Price: ${price}, {stock}"
-            metadata = {
-                "category": category,
-                "brand": doc.get('brand', 'unknown'),
-                "product_name": product_name,
-                "Full Description": full_description,
-                "price": price,
-                "stock": stock
-            }
+            # Use dynamic keys; no hard-coded fields
+            doc_id = str(hash(str(doc)))  # Unique ID from doc hash
+            text = " ".join([f"{k}: {v}" for k, v in doc.items()])  # Concatenate all fields
+            metadata = doc  # Store entire doc as metadata
             self.collection.add(
                 ids=[doc_id],
                 documents=[text],

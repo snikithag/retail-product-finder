@@ -4,6 +4,7 @@ import PyPDF2
 from pathlib import Path
 import sys
 from dotenv import load_dotenv
+from groq import Groq
 
 # Add project root to sys.path
 project_root = str(Path(__file__).parent.parent)
@@ -13,74 +14,53 @@ from src.vector_db.chroma_db import ChromaDB
 
 load_dotenv()
 
-def extract_from_pdf(pdf_path: str) -> list:
-    """Extract text from a PDF file and return a list of product dictionaries."""
-    documents = []
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
+def infer_schema_and_parse(text: str) -> list:
+    """Use Groq to infer schema and parse text into structured documents."""
+    prompt = f"""
+    You are a data extraction AI. Given the following document text, infer the schema (e.g., fields like category, brand, product_name, description, price, stock) and parse it into a list of product dictionaries. Be dynamic and don't assume fixed fields; detect what makes sense from the content. For example, if it's a catalog, extract product names, descriptions, prices, etc.
+    Document text: {text}
+    Return a list of dictionaries, e.g., [{'category': 'smartphones', 'brand': 'samsung', 'product_name': 'Galaxy S24', 'description': '128GB Storage...', 'price': 699, 'stock': 'In Stock'}]
+    """
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2,
+        max_tokens=2000
+    )
+    parsed_response = eval(response.choices[0].message.content)  # Dangerous eval, use json in production
+    return parsed_response
+
+def extract_from_pdf(pdf_path: str) -> str:
+    """Extract text from PDF."""
+    text = ""
     with open(pdf_path, "rb") as file:
         reader = PyPDF2.PdfReader(file)
         for page in reader.pages:
-            text = page.extract_text()
-            if not text:
-                continue
-            lines = text.split("\n")
-            current_category = None
-            for line in lines:
-                if line in ["Smartphones", "Laptops", "Tablets", "TVs", "Wearables", "Smart Home Devices", "Gaming Consoles", "Cameras", "Audio Devices"]:
-                    current_category = line.lower()
-                elif line.startswith("- ") and current_category:
-                    parts = line[2:].split(": ")
-                    if len(parts) >= 2:
-                        name_desc = parts[0]
-                        details = parts[1].split(", Price: $")
-                        if len(details) >= 2:
-                            full_description = details[0].strip()
-                            price_stock = details[1].split(", ")
-                            price = float(price_stock[0])
-                            stock = price_stock[1].strip()
-                            brand = name_desc.split(" ")[0]
-                            product_name = " ".join(name_desc.split(" ")[1:])
-                            documents.append({
-                                "category": current_category,
-                                "brand": brand.lower(),
-                                "product_name": product_name,
-                                "Full Description": full_description,
-                                "price": price,
-                                "stock": stock
-                            })
-    return documents
+            text += page.extract_text() + "\n"
+    return text
 
 def index_catalogs():
-    """Index all product catalogs in the data/catalogs directory."""
+    """Dynamically index catalogs using Groq to infer schema."""
     chroma_db = ChromaDB()
     catalog_dir = "data/catalogs"
     
-    # Process Excel files
-    excel_documents = []
+    documents = []
     for file in os.listdir(catalog_dir):
+        file_path = os.path.join(catalog_dir, file)
         if file.endswith(".xlsx"):
-            df = pd.read_excel(os.path.join(catalog_dir, file))
-            df = df.rename(columns={
-                "Category": "category",
-                "Brand": "brand",
-                "Product Name": "product_name",
-                "Full Description": "Full Description",
-                "Price": "price",
-                "Stock": "stock"
-            })
-            df['product_name'] = df['product_name'].astype(str)
-            excel_documents.extend(df.to_dict(orient="records"))
+            df = pd.read_excel(file_path)
+            text = df.to_string()
+            parsed_documents = infer_schema_and_parse(text)
+            documents.extend(parsed_documents)
+        elif file.endswith(".pdf"):
+            text = extract_from_pdf(file_path)
+            parsed_documents = infer_schema_and_parse(text)
+            documents.extend(parsed_documents)
     
-    if excel_documents:
-        chroma_db.index_documents(excel_documents)
-    
-    # Process PDF files
-    pdf_documents = []
-    for file in os.listdir(catalog_dir):
-        if file.endswith(".pdf"):
-            pdf_documents.extend(extract_from_pdf(os.path.join(catalog_dir, file)))
-    
-    if pdf_documents:
-        chroma_db.index_documents(pdf_documents)
+    if documents:
+        chroma_db.index_documents(documents)
 
 if __name__ == "__main__":
     index_catalogs()
