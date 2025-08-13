@@ -19,7 +19,13 @@ class Chatbot:
         if local_results:
             for result in local_results:
                 metadata = result['metadata']
-                response += f"- {metadata['brand']} {metadata['product_name']}: {metadata['Full Description']}, Price: ${metadata['price']}, {metadata['stock']}\n"
+                brand = metadata.get('brand', 'Unknown Brand')
+                product_name = metadata.get('product_name', 'Unknown Product')
+                description = metadata.get('description', metadata.get('Full Description', 'No description available'))
+                price = metadata.get('price', 'N/A')
+                stock = metadata.get('stock', 'Stock unknown')
+                
+                response += f"- {brand} {product_name}: {description}, Price: ${price}, {stock}\n"
         else:
             response += "Unfortunately, we don't have any matching products in our local catalog.\n"
 
